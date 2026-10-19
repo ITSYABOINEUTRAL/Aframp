@@ -42,6 +42,11 @@ const nextConfig = {
     // assets that bypass middleware (e.g. _next/static) and therefore do NOT
     // include script-src so they don't clobber the nonce injected by the
     // middleware on page routes.
+    //
+    // Permissions-Policy: `camera=(self)` is required by the QR scanners in
+    // components/send/qr-scanner.tsx and
+    // components/request/request-page-client.tsx, which call getUserMedia.
+    // `camera=()` would silently block them in production (#636).
     return [
       {
         source: '/(.*)',
@@ -50,7 +55,7 @@ const nextConfig = {
           { key: 'X-Frame-Options', value: 'DENY' },
           { key: 'X-XSS-Protection', value: '1; mode=block' },
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+          { key: 'Permissions-Policy', value: 'camera=(self), microphone=(), geolocation=()' },
         ],
       },
     ]

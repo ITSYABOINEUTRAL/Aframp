@@ -19,6 +19,11 @@ interface RequestPageClientProps {
 
 type CopyTarget = 'wallet' | 'paymentLink' | 'sep7'
 
+// The QR scanner relies on getUserMedia, which requires the Permissions-Policy
+// header to allow camera access for same-origin pages (camera=(self)).
+// See next.config.mjs — keep these in sync.
+const CAMERA_PERMISSIONS_POLICY = 'camera=(self)'
+
 export function RequestPageClient({ requestId }: RequestPageClientProps) {
   const router = useRouter()
   const [request, setRequest] = useState<PaymentRequest | null>(null)
@@ -217,178 +222,69 @@ export function RequestPageClient({ requestId }: RequestPageClientProps) {
           <h1 className="text-base font-semibold tracking-tight">Payment Request</h1>
         </header>
 
-        <div className="flex flex-col flex-1 px-5 pb-8 gap-5">
-          {/* ── Payment amount card ── */}
-          <div className="rounded-2xl border border-border/60 bg-card p-6">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-2">
-              Amount requested
+        {/* ── Content ── */}
+        <div className="flex flex-col flex-1 px-5 gap-6">
+          <div className="flex flex-col items-center gap-2 text-center">
+            <p className="text-sm text-muted-foreground">Requesting</p>
+            <p className="text-3xl font-bold tracking-tight">
+              {formatStroops(request.amount_stroops)} {request.asset}
             </p>
-            <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-bold text-foreground">
-                {formatStroops(request.amount_stroops)}
-              </span>
-              <span className="text-lg text-muted-foreground">{request.asset}</span>
-            </div>
-            <p className="text-xs text-muted-foreground mt-2">
-              on Stellar network via {request.asset}
-            </p>
-          </div>
-
-          {/* ── Request details ── */}
-          <div className="rounded-2xl border border-border/60 bg-card p-6 space-y-4">
             {request.memo && (
-              <div>
-                <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-1">
-                  Reference
-                </p>
-                <p className="text-sm text-foreground">{request.memo}</p>
-              </div>
+              <p className="text-sm text-muted-foreground">{request.memo}</p>
             )}
-            <div>
-              <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-1">
-                Expires
-              </p>
-              <p className="text-sm text-foreground">{formatDateTime(request.expires_at)}</p>
-            </div>
           </div>
 
-          {/* ── QR Code card ── */}
-          <div className="flex flex-col items-center gap-5 p-6 rounded-2xl border border-border/60 bg-card">
-            <div className="p-4 bg-white rounded-2xl shadow-sm">
-              <QRCode
-                value={qrValue}
-                size={200}
-                style={{ display: 'block' }}
-                viewBox="0 0 256 256"
-              />
-            </div>
-
-            <p className="text-xs text-muted-foreground text-center">
-              Scan with {request.asset} wallet to pay this request
-            </p>
-            <div className="flex w-full flex-col gap-2">
-              <Button
-                onClick={() => void handleCopy('paymentLink', window.location.href)}
-                variant="outline"
-                size="sm"
-                className={cn(
-                  'h-9 w-full gap-2 transition-all',
-                  copied === 'paymentLink' &&
-                    'border-emerald-500/40 text-emerald-600 bg-emerald-500/5'
-                )}
-              >
-                {copied === 'paymentLink' ? (
-                  <>
-                    <Check className="w-3.5 h-3.5" />
-                    Copied!
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-3.5 h-3.5" />
-                    Copy payment link
-                  </>
-                )}
-              </Button>
-              <Button
-                onClick={() => void handleCopy('sep7', qrValue)}
-                variant="outline"
-                size="sm"
-                className={cn(
-                  'h-9 w-full gap-2 transition-all',
-                  copied === 'sep7' && 'border-emerald-500/40 text-emerald-600 bg-emerald-500/5'
-                )}
-              >
-                {copied === 'sep7' ? (
-                  <>
-                    <Check className="w-3.5 h-3.5" />
-                    Copied!
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-3.5 h-3.5" />
-                    Copy SEP-7 URI
-                  </>
-                )}
-              </Button>
-            </div>
+          <div className="flex justify-center p-4 bg-white rounded-2xl">
+            <QRCode value={qrValue} size={isMobile ? 200 : 240} />
           </div>
 
-          {/* ── Wallet address ── */}
-          <div className="rounded-2xl border border-border/60 bg-card overflow-hidden">
-            <div className="px-4 pt-4 pb-2">
-              <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-2">
-                Payment address
-              </p>
-              <p className="font-mono text-xs break-all leading-relaxed text-foreground">
-                {request.address}
-              </p>
-            </div>
-            <div className="px-4 pb-4 flex gap-2 mt-2">
-              <Button
-                onClick={() => void handleCopy('wallet', request.address)}
-                variant="outline"
-                size="sm"
-                className={cn(
-                  'flex-1 h-9 gap-2 transition-all',
-                  copied === 'wallet' && 'border-emerald-500/40 text-emerald-600 bg-emerald-500/5'
-                )}
-              >
-                {copied === 'wallet' ? (
-                  <>
-                    <Check className="w-3.5 h-3.5" />
-                    Copied!
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-3.5 h-3.5" />
-                    Copy
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-
-          {/* ── Mobile camera button ── */}
-          {isMobile && (
+          <div className="flex flex-col gap-3">
             <Button
-              onClick={() => setScannerOpen(true)}
-              disabled={submitting}
-              className="w-full h-12 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold rounded-xl flex gap-2 disabled:opacity-40"
+              variant="outline"
+              className="w-full justify-between"
+              onClick={() => void handleCopy('wallet', request.address)}
             >
-              <Camera className="w-5 h-5" />
-              {submitting ? 'Confirming...' : 'Pay with camera'}
+              <span className="truncate font-mono text-xs">{request.address}</span>
+              {copied === 'wallet' ? (
+                <Check className="w-4 h-4 text-emerald-500 shrink-0" />
+              ) : (
+                <Copy className="w-4 h-4 shrink-0" />
+              )}
             </Button>
-          )}
+
+            <Button
+              className="w-full gap-2"
+              onClick={() => setScannerOpen(true)}
+            >
+              <Camera className="w-4 h-4" />
+              Scan to confirm payment
+            </Button>
+          </div>
 
           {scanError && (
-            <div className="rounded-2xl border border-red-500/40 bg-red-500/5 p-4 flex gap-3">
-              <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-semibold text-red-700">Error</p>
-                <p className="text-xs text-red-600 mt-1">{scanError}</p>
-              </div>
+            <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
+              <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+              <span>{scanError}</span>
             </div>
           )}
 
-          {/* ── Scanned address confirmation ── */}
           {scannedAddress && !scanError && (
-            <div className="rounded-2xl border border-emerald-500/40 bg-emerald-500/5 p-4 flex gap-3">
-              <AlertCircle className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-semibold text-emerald-700">Payment detected</p>
-                <p className="text-xs text-emerald-600 mt-1">
-                  From: {scannedAddress.slice(0, 10)}...{scannedAddress.slice(-10)}
-                </p>
-              </div>
+            <div className="flex items-start gap-2 p-3 rounded-lg bg-emerald-500/10 text-emerald-600 text-sm">
+              <Check className="w-4 h-4 mt-0.5 shrink-0" />
+              <span className="break-all">
+                {submitting ? 'Confirming payment…' : `Scanned: ${scannedAddress}`}
+              </span>
             </div>
           )}
         </div>
-      </div>
 
-      {/* ── QR Scanner Modal ── */}
-      {scannerOpen && (
-        <QRScanner onScan={handleScanPayment} onClose={() => setScannerOpen(false)} />
-      )}
+        {scannerOpen && (
+          <QRScanner
+            onScan={(value) => void handleScanPayment(value)}
+            onClose={() => setScannerOpen(false)}
+          />
+        )}
+      </div>
     </div>
   )
 }
